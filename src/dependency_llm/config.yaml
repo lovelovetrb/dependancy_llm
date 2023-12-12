@@ -1,0 +1,20 @@
+basic:
+  seed: 1234
+  model_name: "cl-tohoku/bert-base-japanese"
+  add_layer_size: 2
+  data_path: "src/dependency_llm/data/ktc_data.json"
+dataset:
+  train_ratio: 0.8
+  valid_ratio: 0.1
+  test_ratio: 0.1
+train:
+  epoch: 10
+  batch_size: 256
+  valid_batch_size: 16
+  test_batch_size: 16
+  lr: 0.001
+  weight_decay: 0.0001
+  save_path: "src/dependency_llm/model/model-12-10-v1/"
+gpu:
+  visible_gpu: [5, 6]
+
