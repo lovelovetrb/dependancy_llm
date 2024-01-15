@@ -16,17 +16,11 @@ logger = logging.getLogger(__name__)
 
 def init_config(config: dict):
     logger.info("Initializing wandb...")
+    logger.info(f"seed: {config['basic']['seed']}")
     set_seed(config["basic"]["seed"])
     wandb.init(
         project="dependency_llm",
-        config={
-            "base_model": config["basic"]["model_name"],
-            "epochs": config["train"]["epoch"],
-            "batch_size": config["train"]["batch_size"],
-            "lr": config["train"]["lr"],
-            "weight_decay": config["train"]["weight_decay"],
-            "seed": config["basic"]["seed"],
-        },
+        config=config,
     )
 
 
