@@ -3,8 +3,8 @@ import os
 
 import torch
 import yaml
-from data.dependency_data import dependency_data
-from data.splitDataset import splitDataset
+from dataset.dependency_data import dependency_data
+from dataset.splitDataset import splitDataset
 from model.baseModel import baseModel
 from model.dependencyMatrixModel import DependencyMatrixModel
 from trainer import Trainer
@@ -53,45 +53,22 @@ def main():
     ) = split_dataset.split_dataset_for_training_and_evaluation()
 
     train_dataset = split_dataset.adj_dataset(train_dataset)
-    print(len(train_dataset))
-    pos_outside_num = 0
-    pos_inside_neighbor_num = 0
-    neg_neighbor_num = 0
-    neg_distant_num = 0
-    for data in train_dataset:
-        if (
-            data["type"] == "pos_outside_neighbor"
-            or data["type"] == "pos_outside_distant"
-        ):
-            pos_outside_num += 1
-        elif data["type"] == "pos_inside_neighbor":
-            pos_inside_neighbor_num += 1
-        elif data["type"] == "neg_neighbor":
-            neg_neighbor_num += 1
-        elif data["type"] == "neg_distant":
-            neg_distant_num += 1
-        else:
-            raise ValueError
-    print(f"pos_outside_num: {pos_outside_num}")
-    print(f"pos_inside_neighbor_num: {pos_inside_neighbor_num}")
-    print(f"neg_neighbor_num: {neg_neighbor_num}")
-    print(f"neg_distant_num: {neg_distant_num}")
-    assert (
-        max(
-            pos_outside_num,
-            pos_inside_neighbor_num,
-            neg_neighbor_num,
-            neg_distant_num,
+    valid_dataset = split_dataset.adj_dataset(valid_dataset)
+    test_dataset = split_dataset.adj_dataset(test_dataset)
+    for data in test_dataset:
+        print()
+        print("=" * 20)
+        print(data["label"])
+        print(
+            tokenizer.convert_ids_to_tokens(
+                data["token"]["input_ids"][0], skip_special_tokens=True
+            )
         )
-        - min(
-            pos_outside_num,
-            pos_inside_neighbor_num,
-            neg_neighbor_num,
-            neg_distant_num,
-        )
-        <= 1
-    )
+        print(data["type"])
+        print(data["debug_dict"])
+        print()
     exit()
+
     if config["basic"]["mode"] == "train":
         logger.info("Loading model...")
         base_model = DependencyMatrixModel(

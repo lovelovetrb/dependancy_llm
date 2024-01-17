@@ -1,5 +1,8 @@
+import random
+
 import torch
-from data.dependency_data import dependency_data
+from dataset.dependency_data import dependency_data
+from util import logger
 
 
 class splitDataset:
@@ -72,6 +75,30 @@ class splitDataset:
                     indeices.append(idx)
             else:
                 continue
+        logger.info("=== adj_train_dataset ===")
+        logger.info(f"pos_outside_num: {pos_outside_num}")
+        logger.info(f"pos_inside_neighbor_num: {pos_inside_neighbor_num}")
+        logger.info(f"neg_neighbor_num: {neg_neighbor_num}")
+        logger.info(f"neg_distant_num: {neg_distant_num}")
+        logger.info("==========================")
+
+        assert (
+            max(
+                pos_outside_num,
+                pos_inside_neighbor_num,
+                neg_neighbor_num,
+                neg_distant_num,
+            )
+            - min(
+                pos_outside_num,
+                pos_inside_neighbor_num,
+                neg_neighbor_num,
+                neg_distant_num,
+            )
+            <= 1
+        )
+        random.shuffle(indeices)
+
         return torch.utils.data.Subset(dataset, indeices)
 
     def sanity_check(self, config: dict):

@@ -3,10 +3,15 @@ import os
 import matplotlib.pyplot as plt
 import torch
 import torch.distributed as dist
-from data.dependency_data import dependency_data
+from dataset.dependency_data import dependency_data
 from model.dependencyMatrixModel import DependencyMatrixModel
-from sklearn.metrics import (ConfusionMatrixDisplay, accuracy_score, f1_score,
-                             precision_score, recall_score)
+from sklearn.metrics import (
+    ConfusionMatrixDisplay,
+    accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
+)
 from tqdm import tqdm
 from util import logger
 
@@ -43,6 +48,7 @@ class Trainer:
 
         if self.config["basic"]["mode"] == "train":
             if self.config["train"]["fp16"]:
+                logger.info("use fp16")
                 self.optimizer = torch.optim.AdamW(
                     self.model.parameters(),
                     lr=self.config["train"]["lr"],
@@ -105,10 +111,12 @@ class Trainer:
             pin_memory=True,
             drop_last=True,
         )
+
         if self.args.is_master:
             logger.info(f"Train dataloader length: {len(self.train_dataloader)}")
             logger.info(f"Valid dataloader length: {len(self.valid_dataloader)}")
             logger.info(f"Test dataloader length: {len(self.test_dataloader)}")
+
         wandb.log(
             {
                 "train_dataset_length": len(self.train_dataloader),
@@ -130,9 +138,10 @@ class Trainer:
                 disable=not self.args.is_master,
             )
 
-            for batch_label, _, batch_data in train_iter_bar:
+            for batch_data in train_iter_bar:
                 if self.args.is_master:
                     train_iter_bar.set_postfix(loss=self.last_loss)
+                batch_label = batch_data["label"]
                 self.train_step(batch_label=batch_label, batch_data=batch_data)
                 wandb.log(
                     {
@@ -155,13 +164,18 @@ class Trainer:
             self.valid()
             self.end_epoch()
 
+        ######## Test ########
+        if self.args.is_master:
+            logger.info("######## Test ########")
+        self.test()
+
     def train_step(self, batch_label, batch_data) -> None:
         self.optimizer.zero_grad()
         batch_label = batch_label.to(self.args.device)
 
         with torch.cuda.amp.autocast():
             output = self.model(batch_data)
-            assert output.shape == batch_label.shape
+            # assert output.shape == batch_label.shape
             loss = self.loss_fn(output, batch_label)
 
         if self.config["train"]["fp16"]:
@@ -181,16 +195,15 @@ class Trainer:
         )
         correct_label = []
         pred_label = []
-        for batch_label, _, batch_data in valid_iter_bar:
+        for batch_data in valid_iter_bar:
+            batch_label = batch_data["label"]
             with torch.no_grad():
                 output = self.model(batch_data)
-                try:
-                    correct_label += batch_label.squeeze().tolist()
-                    pred_label += output.cpu().squeeze().tolist()
-                except:
-                    print(batch_label)
-                    print(output)
-                    print(batch_data)
+                output = torch.nn.functional.softmax(output, dim=1)
+                output = torch.argmax(output, dim=1)
+                assert output.shape == batch_label.shape
+                correct_label += batch_label.cpu().tolist()
+                pred_label += output.cpu().tolist()
 
         assert len(pred_label) == len(correct_label)
 
@@ -235,47 +248,17 @@ class Trainer:
         )
         correct_label_dic = {"all": []}
         pred_label_dic = {"all": []}
-        from transformers import BertJapaneseTokenizer
 
-        tokenizer = BertJapaneseTokenizer.from_pretrained(
-            self.config["model"]["model_name"]
-        )
-        for batch_label, batch_type, batch_data in iter_bar:
+        for batch_data in iter_bar:
+            batch_label = batch_data["label"]
             with torch.no_grad():
                 output = self.model(batch_data)
-            batch_label_list = batch_label.squeeze().tolist()
+            batch_label_list = batch_label.cpu().squeeze().tolist()
+            output = torch.nn.functional.softmax(output, dim=1)
+            output = torch.argmax(output, dim=1)
             output_list = output.cpu().squeeze().tolist()
 
-            # DEBUG
-            # if self.args.is_master:
-            #     tokens = tokenizer.convert_ids_to_tokens(
-            #         batch_data[0][0]["token"]["input_ids"].squeeze().squeeze(),
-            #         skip_special_tokens=True,
-            #     )
-            #     print(tokens)
-            #     for i in range(len(batch_data)):
-            #         start_num = len(tokens) * i - (i * (i + 1) // 2)
-            #         print("  ", end="")
-            #         for _ in range(i):
-            #             print("    ", end="")
-            #         for j in range(len(batch_data[i])):
-            #             num = start_num + j
-            #             print(batch_label_list[num], end=" , ")
-            #         print()
-            #         print("  ", end="")
-            #         for _ in range(i):
-            #             print("    ", end="")
-            #         for j in range(len(batch_data[i])):
-            #             num = start_num + j
-            #             print(int(output_list[num]), end=" , ")
-            #         print()
-
-            #     print()
-
-            if isinstance(batch_label_list, float) or isinstance(output_list, int):
-                # print(batch_label_list)
-                # print(output_list)
-                continue
+            batch_type = batch_data["type"]
             for label, type_name, pred in zip(
                 batch_label_list,
                 batch_type,
@@ -283,7 +266,7 @@ class Trainer:
             ):
                 correct_label_dic["all"].append(label)
                 pred_label_dic["all"].append(pred)
-                type_name = type_name[0]
+
                 if type_name not in correct_label_dic.keys():
                     correct_label_dic[type_name] = [label]
                     pred_label_dic[type_name] = [pred]
@@ -320,6 +303,7 @@ class Trainer:
 
             if self.args.is_master:
                 logger.info(f"========== TEST SUMMARY - {type_name} ==========")
+                logger.info(f"Test data Num ({type_name}) : {len(correct_label)}")
                 logger.info(f"Test Accuracy ({type_name}) : {accuracy}")
                 logger.info(f"Test Precision({type_name}) : {precision}")
                 logger.info(f"Test Recall   ({type_name}) : {recall}")

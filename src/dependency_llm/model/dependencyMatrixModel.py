@@ -31,15 +31,17 @@ class DependencyMatrixModel(nn.Module):
         )
         self.relu = torch.nn.ReLU()
         self.dropout = torch.nn.Dropout(dropout)
-        self.last_layer = torch.nn.Linear(hidden_size, 1)
+        self.last_layer = torch.nn.Linear(hidden_size, 2)
 
     def forward(
         self,
         dep_data: dict,
     ):
-        input_ids = dep_data[0][0]["token"]["input_ids"].squeeze(0).to("cuda")
-        attention_mask = dep_data[0][0]["token"]["attention_mask"].squeeze(0).to("cuda")
-        scope = dep_data[0][0]["scope"]
+        input_ids = dep_data["token"]["input_ids"].view(-1, self.max_length).to("cuda")
+        attention_mask = (
+            dep_data["token"]["attention_mask"].view(-1, self.max_length).to("cuda")
+        )
+        scope = dep_data["scope"]
 
         output = self.bert(
             input_ids, attention_mask=attention_mask, output_hidden_states=True

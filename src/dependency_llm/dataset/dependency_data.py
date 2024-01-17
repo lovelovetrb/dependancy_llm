@@ -19,6 +19,7 @@ class dependency_data(Dataset):
         super().__init__()
         # json ファイルを読み込む
         self.data = json.load(open(data_path, "r"))
+        # DEBUG
         # self.data = self.data[:100]
         self.model_max_length = model_max_length
         self.tokenizer = tokenizer
@@ -36,19 +37,11 @@ class dependency_data(Dataset):
         self.neg_neighbor_num = 0
         self.neg_distant_num = 0
 
-        # DEBUG
-        index = 0
         for sentence in tqdm(self.data):
             chunk_sentence = sentence["chunk_sentence"]
             head = [int(i) for i in sentence["head"]]
             dep = [int(i) for i in sentence["dep"]]
             self.create_dependency_data(chunk_sentence, head, dep)
-
-            index += 1
-            # DEBUG
-            # if index == 100:
-                # break
-        # exit()
 
         self.len = len(self.dep_data)
         logger.info(f"dependency_data length: {self.len}")

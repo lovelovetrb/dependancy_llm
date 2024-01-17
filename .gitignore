@@ -4,6 +4,7 @@ __pycache__/
 build/
 dist/
 wheels/
+debug/
 *.egg-info
 
 # venv
@@ -13,5 +14,7 @@ wheels/
 mbaba
 wandb
 
-src/dependency_llm/data/
-src/dependency_llm/model/
+src/dependency_llm/data/*
+src/dependency_llm/pickle/*
+src/dependency_llm/pickle/*
+src/dependency_llm/fig/*
