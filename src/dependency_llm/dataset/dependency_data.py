@@ -15,6 +15,7 @@ class dependency_data(Dataset):
         data_path: str,
         tokenizer: BertJapaneseTokenizer,
         model_max_length: int,
+        config: dict,
     ) -> None:
         super().__init__()
         # json ファイルを読み込む
@@ -22,6 +23,7 @@ class dependency_data(Dataset):
         # DEBUG
         # self.data = self.data[:100]
         self.model_max_length = model_max_length
+        self.config = config
         self.tokenizer = tokenizer
 
         self.pad_token_id = tokenizer.pad_token_id
@@ -30,6 +32,24 @@ class dependency_data(Dataset):
 
         self.dep_data = []
 
+        self.target_token_list = [
+            "に",
+            "と",
+            "も",
+            "は",
+            "が",
+            "を",
+            "の",
+            "で",
+            "た",
+            "ば",
+            "て",
+            "へ",
+            "や",
+            "な",
+            "ず",
+        ]
+
         self.pos_outside_neighbor_num = 0
         self.pos_outside_num = 0
         self.pos_outside_distant_num = 0
@@ -37,10 +57,25 @@ class dependency_data(Dataset):
         self.neg_neighbor_num = 0
         self.neg_distant_num = 0
 
-        for sentence in tqdm(self.data):
+        train_data_num = len(self.data) * config["dataset"]["train_ratio"]
+        valid_data_num = len(self.data) * config["dataset"]["valid_ratio"]
+        test_data_num = len(self.data) * config["dataset"]["test_ratio"]
+        sum_data_num = train_data_num + valid_data_num + test_data_num
+        if sum_data_num != len(self.data):
+            train_data_num += len(self.data) - sum_data_num
+
+        for index, sentence in enumerate(tqdm(self.data)):
             chunk_sentence = sentence["chunk_sentence"]
             head = [int(i) for i in sentence["head"]]
             dep = [int(i) for i in sentence["dep"]]
+
+            if index < train_data_num:
+                self.data_split_type = "train"
+            elif index < train_data_num + valid_data_num:
+                self.data_split_type = "valid"
+            else:
+                self.data_split_type = "test"
+
             self.create_dependency_data(chunk_sentence, head, dep)
 
         self.len = len(self.dep_data)
@@ -64,6 +99,7 @@ class dependency_data(Dataset):
         for chunk in chunk_sentence:
             tokens = self.tokenizer.encode(chunk, add_special_tokens=False)
             chunk_tokens.append(tokens)
+
         tokenized_sentence = self.tokenizer.encode_plus(
             sentence,
             padding="max_length",
@@ -74,8 +110,8 @@ class dependency_data(Dataset):
 
         return chunk_tokens, tokenized_sentence
 
-    def create_deps_matrix(self, dep, chunk_tokens, tokenized_sentence):
-        token_clause_dict = self.create_token_clause_dict(chunk_tokens)
+    def create_deps_matrix(self, dep, chunk_tokens_list, tokenized_sentence):
+        token_clause_dict = self.create_token_clause_dict(chunk_tokens_list)
         token_len = len(token_clause_dict)
 
         before_special_token_num = 1
@@ -87,6 +123,19 @@ class dependency_data(Dataset):
             is_last_token_in_clause = (
                 now_token_head_idx != token_clause_dict[now_token_idx + 1]
             )
+
+            chunk_tokens = chunk_tokens_list[now_token_head_idx]
+            if chunk_tokens[-1] == 6:
+                chunk_last_token = self.tokenizer.convert_ids_to_tokens(
+                    chunk_tokens[-2]
+                )
+            else:
+                chunk_last_token = self.tokenizer.convert_ids_to_tokens(
+                    chunk_tokens[-1]
+                )
+
+            if chunk_last_token not in self.target_token_list:
+                chunk_last_token = ""
 
             for scope_token_idx in range(
                 now_token_idx + 1, num_of_after_token + now_token_idx + 1
@@ -138,7 +187,9 @@ class dependency_data(Dataset):
                             "token": tokenized_sentence,
                             "scope": scope,
                             "type": type_name,
-                            "debug_dict": debug_dict,
+                            "data_split_type": self.data_split_type,
+                            "chunk_last_token": chunk_last_token,
+                            # "debug_dict": debug_dict,
                         }
                     )
                 # 係元のtokenが係先のtokenの隣の場合(文節内での係り受け)
@@ -153,7 +204,9 @@ class dependency_data(Dataset):
                             "token": tokenized_sentence,
                             "scope": scope,
                             "type": "pos_inside_neighbor",
-                            "debug_dict": debug_dict,
+                            "data_split_type": self.data_split_type,
+                            "chunk_last_token": chunk_last_token,
+                            # "debug_dict": debug_dict,
                         }
                     )
                 elif now_token_idx + 1 == scope_token_idx:  # neg_neighbor
@@ -164,7 +217,9 @@ class dependency_data(Dataset):
                             "token": tokenized_sentence,
                             "scope": scope,
                             "type": "neg_neighbor",
-                            "debug_dict": debug_dict,
+                            "data_split_type": self.data_split_type,
+                            "chunk_last_token": chunk_last_token,
+                            # "debug_dict": debug_dict,
                         }
                     )
                 else:  # neg_distant
@@ -175,7 +230,9 @@ class dependency_data(Dataset):
                             "token": tokenized_sentence,
                             "scope": scope,
                             "type": "neg_distant",
-                            "debug_dict": debug_dict,
+                            "data_split_type": self.data_split_type,
+                            "chunk_last_token": chunk_last_token,
+                            # "debug_dict": debug_dict,
                         }
                     )
 

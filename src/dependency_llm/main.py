@@ -42,6 +42,7 @@ def main():
         data_path=config["basic"]["data_path"],
         model_max_length=args.model_max_length,
         tokenizer=tokenizer,
+        config=config,
     )
 
     split_dataset = splitDataset(config=config, dataset=dataset)
@@ -54,20 +55,11 @@ def main():
 
     train_dataset = split_dataset.adj_dataset(train_dataset)
     valid_dataset = split_dataset.adj_dataset(valid_dataset)
-    test_dataset = split_dataset.adj_dataset(test_dataset)
-    for data in test_dataset:
-        print()
-        print("=" * 20)
-        print(data["label"])
-        print(
-            tokenizer.convert_ids_to_tokens(
-                data["token"]["input_ids"][0], skip_special_tokens=True
-            )
-        )
-        print(data["type"])
-        print(data["debug_dict"])
-        print()
-    exit()
+
+    if args.is_master:
+        logger.info(f"train_dataset: {len(train_dataset)}")
+        logger.info(f"valid_dataset: {len(valid_dataset)}")
+        logger.info(f"test_dataset: {len(test_dataset)}")
 
     if config["basic"]["mode"] == "train":
         logger.info("Loading model...")
@@ -81,6 +73,8 @@ def main():
         )
         base_model.to("cuda")
         base_model.train()
+        if config["train"]["knockout"]:
+            base_model.knockout(config["knockout"]["knockout_layer_head"])
 
         trainer = Trainer(
             model=base_model,
@@ -116,7 +110,7 @@ def main():
         test_model.to("cuda")
 
         if config["test"]["knockout"]:
-            test_model.knockout(config["test"]["knockout_layer_head"])
+            test_model.knockout(config["knockout"]["knockout_layer_head"])
         else:
             logger.info("No knockout")
 

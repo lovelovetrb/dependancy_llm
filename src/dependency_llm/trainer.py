@@ -165,9 +165,9 @@ class Trainer:
             self.end_epoch()
 
         ######## Test ########
-        if self.args.is_master:
-            logger.info("######## Test ########")
-        self.test()
+        # if self.args.is_master:
+        #     logger.info("######## Test ########")
+        # self.test()
 
     def train_step(self, batch_label, batch_data) -> None:
         self.optimizer.zero_grad()
@@ -207,22 +207,7 @@ class Trainer:
 
         assert len(pred_label) == len(correct_label)
 
-        accuracy = accuracy_score(
-            correct_label,
-            pred_label,
-        )
-        precision = precision_score(
-            correct_label,
-            pred_label,
-        )
-        recall = recall_score(
-            correct_label,
-            pred_label,
-        )
-        f1 = f1_score(
-            correct_label,
-            pred_label,
-        )
+        accuracy, precision, recall, f1 = self.calc_score(pred_label, correct_label)
 
         self.last_accuracy = accuracy
 
@@ -246,26 +231,55 @@ class Trainer:
             self.test_dataloader,
             disable=not self.args.is_master,
         )
-        correct_label_dic = {"all": []}
-        pred_label_dic = {"all": []}
+        correct_label_dic = {"all": [], "pos": [], "neg": []}
+        pred_label_dic = {"all": [], "pos": [], "neg": []}
 
         for batch_data in iter_bar:
             batch_label = batch_data["label"]
+            batch_label_list = batch_label.cpu().squeeze().tolist()
+
             with torch.no_grad():
                 output = self.model(batch_data)
-            batch_label_list = batch_label.cpu().squeeze().tolist()
             output = torch.nn.functional.softmax(output, dim=1)
             output = torch.argmax(output, dim=1)
             output_list = output.cpu().squeeze().tolist()
 
             batch_type = batch_data["type"]
-            for label, type_name, pred in zip(
+            batch_chunk_last_token = batch_data["chunk_last_token"]
+            for label, type_name, chunk_last_token, pred in zip(
                 batch_label_list,
                 batch_type,
+                batch_chunk_last_token,
                 output_list,
             ):
                 correct_label_dic["all"].append(label)
                 pred_label_dic["all"].append(pred)
+                if f"all - {chunk_last_token}" not in correct_label_dic.keys():
+                    correct_label_dic[f"all - {chunk_last_token}"] = [label]
+                    pred_label_dic[f"all - {chunk_last_token}"] = [pred]
+                else:
+                    correct_label_dic[f"all - {chunk_last_token}"].append(label)
+                    pred_label_dic[f"all - {chunk_last_token}"].append(pred)
+
+                # type_nameがposで始まるもの
+                if type_name.startswith("pos"):
+                    correct_label_dic["pos"].append(label)
+                    pred_label_dic["pos"].append(pred)
+                    if f"pos - {chunk_last_token}" not in correct_label_dic.keys():
+                        correct_label_dic[f"pos - {chunk_last_token}"] = [label]
+                        pred_label_dic[f"pos - {chunk_last_token}"] = [pred]
+                    else:
+                        correct_label_dic[f"pos - {chunk_last_token}"].append(label)
+                        pred_label_dic[f"pos - {chunk_last_token}"].append(pred)
+                else:
+                    correct_label_dic["neg"].append(label)
+                    pred_label_dic["neg"].append(pred)
+                    if f"neg - {chunk_last_token}" not in correct_label_dic.keys():
+                        correct_label_dic[f"neg - {chunk_last_token}"] = [label]
+                        pred_label_dic[f"neg - {chunk_last_token}"] = [pred]
+                    else:
+                        correct_label_dic[f"neg - {chunk_last_token}"].append(label)
+                        pred_label_dic[f"neg - {chunk_last_token}"].append(pred)
 
                 if type_name not in correct_label_dic.keys():
                     correct_label_dic[type_name] = [label]
@@ -274,40 +288,28 @@ class Trainer:
                     correct_label_dic[type_name].append(label)
                     pred_label_dic[type_name].append(pred)
 
+                if f"{type_name} - {chunk_last_token}" not in correct_label_dic.keys():
+                    correct_label_dic[f"{type_name} - {chunk_last_token}"] = [label]
+                    pred_label_dic[f"{type_name} - {chunk_last_token}"] = [pred]
+                else:
+                    correct_label_dic[f"{type_name} - {chunk_last_token}"].append(label)
+                    pred_label_dic[f"{type_name} - {chunk_last_token}"].append(pred)
+
         for pred_label, correct_label, type_name in zip(
             pred_label_dic.values(),
             correct_label_dic.values(),
             correct_label_dic.keys(),
         ):
             assert len(pred_label) == len(correct_label)
-
-            accuracy = accuracy_score(
-                correct_label,
-                pred_label,
-            )
-            precision = precision_score(
-                correct_label,
-                pred_label,
-                zero_division=0,
-            )
-            recall = recall_score(
-                correct_label,
-                pred_label,
-                zero_division=0,
-            )
-            f1 = f1_score(
-                correct_label,
-                pred_label,
-                zero_division=0,
-            )
+            accuracy, precision, recall, f1 = self.calc_score(pred_label, correct_label)
 
             if self.args.is_master:
-                logger.info(f"========== TEST SUMMARY - {type_name} ==========")
-                logger.info(f"Test data Num ({type_name}) : {len(correct_label)}")
-                logger.info(f"Test Accuracy ({type_name}) : {accuracy}")
-                logger.info(f"Test Precision({type_name}) : {precision}")
-                logger.info(f"Test Recall   ({type_name}) : {recall}")
-                logger.info(f"Test F1 Score ({type_name}) : {f1}")
+                print(f"========== TEST SUMMARY - {type_name} ==========")
+                print(f"Test data Num ({type_name}) : {len(correct_label)}")
+                print(f"Test Accuracy ({type_name}) : {accuracy}")
+                print(f"Test Precision({type_name}) : {precision}")
+                print(f"Test Recall   ({type_name}) : {recall}")
+                print(f"Test F1 Score ({type_name}) : {f1}")
                 if not self.config["test"]["test_base_model"]:
                     correct_label.append(0.0)
                     correct_label.append(1.0)
@@ -350,3 +352,11 @@ class Trainer:
 
     def save_model(self, path) -> None:
         torch.save(self.model, path)
+
+    def calc_score(self, pred, label):
+        accuracy = accuracy_score(label, pred)
+        precision = precision_score(label, pred)
+        recall = recall_score(label, pred)
+        f1 = f1_score(label, pred)
+
+        return accuracy, precision, recall, f1
