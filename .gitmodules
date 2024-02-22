@@ -1,0 +1,3 @@
+[submodule "src/dependency_llm/transformers"]
+	path = src/dependency_llm/transformers
+	url = git@github.com:lovelovetrb/transformers.git
