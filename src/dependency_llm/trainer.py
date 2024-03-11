@@ -351,7 +351,7 @@ class Trainer:
         self.now_iter = 1
 
     def save_model(self, path) -> None:
-        torch.save(self.model, path)
+        torch.save(self.model.state_dict(), path)
 
     def calc_score(self, pred, label):
         accuracy = accuracy_score(label, pred)

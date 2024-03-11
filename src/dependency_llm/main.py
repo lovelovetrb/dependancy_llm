@@ -104,6 +104,14 @@ def main():
             if config["test"]["knockout"]:
                 raise ValueError("knockout is not available in baseModel")
         else:
+            test_model = DependencyMatrixModel(
+                model_name=config["model"]["model_name"],
+                scope_layer_size=config["model"]["scope_layer_size"],
+                max_length=args.model_max_length,
+                dropout=config["model"]["dropout"],
+                hidden_size=config["model"]["hidden_size"],
+                freeze_bert=config["model"]["bert_freeze"],
+            )
             test_model = torch.load(config["train"]["save_path"] + "best_loss.pth")
 
         test_model.eval()
