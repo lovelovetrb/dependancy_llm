@@ -21,7 +21,8 @@ class dependency_data(Dataset):
         # json ファイルを読み込む
         self.data = json.load(open(data_path, "r"))
         # DEBUG
-        # self.data = self.data[:100]
+        self.data = self.data[:10]
+
         self.model_max_length = model_max_length
         self.config = config
         self.tokenizer = tokenizer
@@ -100,6 +101,7 @@ class dependency_data(Dataset):
             tokens = self.tokenizer.encode(chunk, add_special_tokens=False)
             chunk_tokens.append(tokens)
 
+        # TODO: chunk_tokens を用いたトークン化を行うに挙動を変更
         tokenized_sentence = self.tokenizer.encode_plus(
             sentence,
             padding="max_length",
