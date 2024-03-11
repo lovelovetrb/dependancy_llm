@@ -8,34 +8,19 @@ from dataset.splitDataset import splitDataset
 from model.baseModel import baseModel
 from model.dependencyMatrixModel import DependencyMatrixModel
 from trainer import Trainer
-from transformers import BertJapaneseTokenizer
-from util import init_config, init_gpu, logger
+from util import init_config, init_gpu, logger, init_tokenizer, get_model_max_length
 
 import wandb
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    # parser.add_argument("--debug", action="store_true")
-    args = parser.parse_args()
-
-    # config.yamlの読み込み
-    logger.info("Loading config.yaml...")
-    with open("src/dependency_llm/config.yaml") as f:
-        config = yaml.safe_load(f)
-
-    if len(config["gpu"]["visible_gpu"]) > 0:
-        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(
-            [str(i) for i in config["gpu"]["visible_gpu"]]
-        )
-
+def task(args: argparse.Namespace, config: dict):
     init_gpu(args)
     init_config(config)
 
-    tokenizer = BertJapaneseTokenizer.from_pretrained(config["model"]["model_name"])
-    args.model_max_length = tokenizer.max_model_input_sizes[
-        config["model"]["model_name"]
-    ]
+    tokenizer = init_tokenizer(config["model"]["model_name"])
+    args.model_max_length = get_model_max_length(
+        tokenizer, config["model"]["model_name"]
+    )
 
     logger.info("Loading dataset...")
     dataset = dependency_data(
@@ -87,6 +72,7 @@ def main():
 
         trainer.train()
         logger.info("Finish training!")
+    # TODO: test.pyへの切り出し
     elif config["basic"]["mode"] == "test":
         logger.info("Test Mode...")
         logger.info("Loading model...")
@@ -150,6 +136,26 @@ def get_dataset_config(dataset: dependency_data):
         else:
             raise ValueError
     return correct_num, bad_num
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config_path", type=str, default="src/dependency_llm/config/setting.yaml"
+    )
+    args = parser.parse_args()
+
+    # config.yamlの読み込み
+    logger.info("Loading config.yaml...")
+    with open(args.config_path) as f:
+        config = yaml.safe_load(f)
+
+    # TODO: CUDA_VISIBLE_DEVICESの設定を実行時引数に設定できるよう変更
+    if len(config["gpu"]["visible_gpu"]) > 0:
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(
+            [str(i) for i in config["gpu"]["visible_gpu"]]
+        )
+    task(args, config)
 
 
 if __name__ == "__main__":
