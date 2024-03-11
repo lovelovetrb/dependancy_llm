@@ -46,6 +46,7 @@ class Trainer:
         self.now_epoch = 1
         self.now_iter = 1
 
+        # TODO: test.pyへの切り出し
         if self.config["basic"]["mode"] == "train":
             if self.config["train"]["fp16"]:
                 logger.info("use fp16")
@@ -216,6 +217,7 @@ class Trainer:
             logger.info(f"Epoch {self.now_epoch} - Precision: {precision}")
             logger.info(f"Epoch {self.now_epoch} - Recall: {recall}")
             logger.info(f"Epoch {self.now_epoch} - F1 Score: {f1}")
+
         wandb.log(
             {
                 "epoch": self.now_epoch,
@@ -226,6 +228,7 @@ class Trainer:
             }
         )
 
+    # TODO: test.pyへの切り出し
     def test(self) -> None:
         iter_bar = tqdm(
             self.test_dataloader,
@@ -238,6 +241,7 @@ class Trainer:
             batch_label = batch_data["label"]
             batch_label_list = batch_label.cpu().squeeze().tolist()
 
+            # TODO: 推論処理を関数化
             with torch.no_grad():
                 output = self.model(batch_data)
             output = torch.nn.functional.softmax(output, dim=1)
@@ -245,41 +249,21 @@ class Trainer:
             output_list = output.cpu().squeeze().tolist()
 
             batch_type = batch_data["type"]
-            batch_chunk_last_token = batch_data["chunk_last_token"]
-            for label, type_name, chunk_last_token, pred in zip(
+            for label, type_name, pred in zip(
                 batch_label_list,
                 batch_type,
-                batch_chunk_last_token,
                 output_list,
             ):
                 correct_label_dic["all"].append(label)
                 pred_label_dic["all"].append(pred)
-                if f"all - {chunk_last_token}" not in correct_label_dic.keys():
-                    correct_label_dic[f"all - {chunk_last_token}"] = [label]
-                    pred_label_dic[f"all - {chunk_last_token}"] = [pred]
-                else:
-                    correct_label_dic[f"all - {chunk_last_token}"].append(label)
-                    pred_label_dic[f"all - {chunk_last_token}"].append(pred)
 
                 # type_nameがposで始まるもの
                 if type_name.startswith("pos"):
                     correct_label_dic["pos"].append(label)
                     pred_label_dic["pos"].append(pred)
-                    if f"pos - {chunk_last_token}" not in correct_label_dic.keys():
-                        correct_label_dic[f"pos - {chunk_last_token}"] = [label]
-                        pred_label_dic[f"pos - {chunk_last_token}"] = [pred]
-                    else:
-                        correct_label_dic[f"pos - {chunk_last_token}"].append(label)
-                        pred_label_dic[f"pos - {chunk_last_token}"].append(pred)
                 else:
                     correct_label_dic["neg"].append(label)
                     pred_label_dic["neg"].append(pred)
-                    if f"neg - {chunk_last_token}" not in correct_label_dic.keys():
-                        correct_label_dic[f"neg - {chunk_last_token}"] = [label]
-                        pred_label_dic[f"neg - {chunk_last_token}"] = [pred]
-                    else:
-                        correct_label_dic[f"neg - {chunk_last_token}"].append(label)
-                        pred_label_dic[f"neg - {chunk_last_token}"].append(pred)
 
                 if type_name not in correct_label_dic.keys():
                     correct_label_dic[type_name] = [label]
@@ -287,13 +271,6 @@ class Trainer:
                 else:
                     correct_label_dic[type_name].append(label)
                     pred_label_dic[type_name].append(pred)
-
-                if f"{type_name} - {chunk_last_token}" not in correct_label_dic.keys():
-                    correct_label_dic[f"{type_name} - {chunk_last_token}"] = [label]
-                    pred_label_dic[f"{type_name} - {chunk_last_token}"] = [pred]
-                else:
-                    correct_label_dic[f"{type_name} - {chunk_last_token}"].append(label)
-                    pred_label_dic[f"{type_name} - {chunk_last_token}"].append(pred)
 
         for pred_label, correct_label, type_name in zip(
             pred_label_dic.values(),
@@ -310,6 +287,7 @@ class Trainer:
                 print(f"Test Precision({type_name}) : {precision}")
                 print(f"Test Recall   ({type_name}) : {recall}")
                 print(f"Test F1 Score ({type_name}) : {f1}")
+                # TODO: matrixの画像生成処理を関数化
                 if not self.config["test"]["test_base_model"]:
                     correct_label.append(0.0)
                     correct_label.append(1.0)
