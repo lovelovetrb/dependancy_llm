@@ -14,7 +14,9 @@ debug/
 mbaba
 wandb
 
-src/dependency_llm/data/*
+src/dependency_llm/data/*.json
+src/dependency_llm/data/ktc_corpus_from_knp/
+src/dependency_llm/data/ktc_corpus_utf8/
 src/dependency_llm/pickle/*
 src/dependency_llm/pickle/*
 src/dependency_llm/fig/*
